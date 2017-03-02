@@ -46,7 +46,26 @@ func TestQuantize(t *testing.T) {
 	if err != nil {
 		t.Fatal("Couldn't decode test file")
 	}
-	q := MedianCutQuantizer{MODE, nil}
+	q := MedianCutQuantizer{MEAN, nil}
+	p := q.Quantize(make([]color.Color, 0, 256), i)
+	t.Logf("Created palette with %d colors", len(p))
+
+	q = MedianCutQuantizer{MODE, nil}
+	p = q.Quantize(make([]color.Color, 0, 256), i)
+	t.Logf("Created palette with %d colors", len(p))
+}
+
+// TestOverQuantize ensures that the quantizer can properly handle an image with more space than needed in the palette
+func TestOverQuantize(t *testing.T) {
+	file, err := os.Open("test_image2.gif")
+	if err != nil {
+		t.Fatal("Couldn't open test file")
+	}
+	i, _, err := image.Decode(file)
+	if err != nil {
+		t.Fatal("Couldn't decode test file")
+	}
+	q := MedianCutQuantizer{MEAN, nil}
 	p := q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
 }
@@ -67,7 +86,7 @@ func TestGif(t *testing.T) {
 		t.Fatal("Couldn't open output file")
 	}
 
-	options := gif.Options{NumColors: 256, Quantizer: q, Drawer: nil}
+	options := gif.Options{NumColors: 128, Quantizer: q, Drawer: nil}
 
 	w := bufio.NewWriter(f)
 
