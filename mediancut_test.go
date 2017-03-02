@@ -49,7 +49,19 @@ func TestQuantize(t *testing.T) {
 	q := MedianCutQuantizer{MODE, nil}
 	p := q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
+}
 
+func TestGif(t *testing.T) {
+	file, err := os.Open("test_image.jpg")
+	if err != nil {
+		t.Fatal("Couldn't open test file")
+	}
+	i, _, err := image.Decode(file)
+	if err != nil {
+		t.Fatal("Couldn't decode test file")
+	}
+
+	q := MedianCutQuantizer{MODE, nil}
 	f, err := os.Create("test_output.gif")
 	if err != nil {
 		t.Fatal("Couldn't open output file")
