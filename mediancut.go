@@ -9,9 +9,9 @@ type colorAxis int
 
 // Color axis constants
 const (
-	RED colorAxis = iota
-	GREEN
-	BLUE
+	red colorAxis = iota
+	green
+	blue
 )
 
 type colorPriority struct {
@@ -29,10 +29,10 @@ type colorBucket []colorPriority
 type AggregationType int
 
 const (
-	// MODE - pick the highest priority value
-	MODE AggregationType = iota
-	// MEAN - weighted average all values
-	MEAN
+	// Mode - pick the highest priority value
+	Mode AggregationType = iota
+	// Mean - weighted average all values
+	Mean
 )
 
 // MedianCutQuantizer implements the go draw.Quantizer interface using the Median Cut method
@@ -69,11 +69,11 @@ func colorSpan(colors []colorPriority) (mean color.Color, span colorAxis, priori
 	sg := g2/priority - mg*mg
 	sb := b2/priority - mb*mb
 	if sr > sg && sr > sb {
-		span = RED
+		span = red
 	} else if sg > sb {
-		span = GREEN
+		span = green
 	} else {
-		span = BLUE
+		span = blue
 	}
 	return
 }
@@ -83,9 +83,9 @@ func gtColor(a color.Color, b color.Color, span colorAxis) bool {
 	ra, ga, ba, _ := a.RGBA()
 	rb, gb, bb, _ := b.RGBA()
 	switch span {
-	case RED:
+	case red:
 		return ra > rb
-	case GREEN:
+	case green:
 		return ga > gb
 	default:
 		return ba > bb
@@ -132,10 +132,10 @@ func bucketize(colors []colorPriority, num int) (buckets []colorBucket) {
 func (q MedianCutQuantizer) palettize(p color.Palette, buckets []colorBucket) color.Palette {
 	for _, bucket := range buckets {
 		switch q.Aggregation {
-		case MEAN:
+		case Mean:
 			mean, _, _ := colorSpan(bucket)
 			p = append(p, mean)
-		case MODE:
+		case Mode:
 			var best *colorPriority
 			for _, c := range bucket {
 				if best == nil || c.p > best.p {
