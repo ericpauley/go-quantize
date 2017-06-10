@@ -1,3 +1,5 @@
+// Package quantize offers an implementation of the draw.Quantize interface using an optimized Median Cut method,
+// including advanced functionality for fine-grained control of color priority
 package quantize
 
 import (
@@ -41,6 +43,8 @@ type MedianCutQuantizer struct {
 	Aggregation AggregationType
 	// The weighting function to use on each pixel
 	Weighting func(image.Image, int, int) uint64
+	// Whether to create a transparent entry
+	AddTransparent bool
 }
 
 // colorSpan performs linear color bucket statistics
@@ -150,8 +154,24 @@ func (q MedianCutQuantizer) palettize(p color.Palette, buckets []colorBucket) co
 
 // quantizeSlice expands the provided bucket and then palettizes the result
 func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriority) color.Palette {
-	buckets := bucketize(colors, cap(p)-len(p))
-	return q.palettize(p, buckets)
+	numColors := cap(p) - len(p)
+	addTransparent := q.AddTransparent
+	if addTransparent {
+		for _, c := range p {
+			if _, _, _, a := c.RGBA(); a == 0 {
+				addTransparent = false
+			}
+		}
+		if addTransparent {
+			numColors--
+		}
+	}
+	buckets := bucketize(colors, numColors)
+	p = q.palettize(p, buckets)
+	if addTransparent {
+		p = append(p, color.RGBA{0, 0, 0, 0})
+	}
+	return p
 }
 
 // buildBucket creates a prioritized color slice with all the colors in the image

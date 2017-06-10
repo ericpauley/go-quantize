@@ -21,7 +21,7 @@ func TestBuildBucket(t *testing.T) {
 		t.Fatal("Couldn't decode test file")
 	}
 
-	q := MedianCutQuantizer{Mode, nil}
+	q := MedianCutQuantizer{Mode, nil, false}
 
 	colors := q.buildBucket(i)
 	t.Logf("Naive color map contains %d elements", len(colors))
@@ -31,7 +31,7 @@ func TestBuildBucket(t *testing.T) {
 			return 1
 		}
 		return 0
-	}}
+	}, false}
 
 	colors = q.buildBucket(i)
 	t.Logf("Color map contains %d elements", len(colors))
@@ -46,11 +46,19 @@ func TestQuantize(t *testing.T) {
 	if err != nil {
 		t.Fatal("Couldn't decode test file")
 	}
-	q := MedianCutQuantizer{Mean, nil}
+	q := MedianCutQuantizer{Mean, nil, false}
 	p := q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
 
-	q = MedianCutQuantizer{Mode, nil}
+	q = MedianCutQuantizer{Mode, nil, false}
+	p = q.Quantize(make([]color.Color, 0, 256), i)
+	t.Logf("Created palette with %d colors", len(p))
+
+	q = MedianCutQuantizer{Mean, nil, true}
+	p = q.Quantize(color.Palette{color.RGBA{0, 0, 0, 0}}, i)
+	t.Logf("Created palette with %d colors", len(p))
+
+	q = MedianCutQuantizer{Mean, nil, true}
 	p = q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
 }
@@ -65,7 +73,7 @@ func TestOverQuantize(t *testing.T) {
 	if err != nil {
 		t.Fatal("Couldn't decode test file")
 	}
-	q := MedianCutQuantizer{Mean, nil}
+	q := MedianCutQuantizer{Mean, nil, false}
 	p := q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
 }
@@ -80,7 +88,7 @@ func TestGif(t *testing.T) {
 		t.Fatal("Couldn't decode test file")
 	}
 
-	q := MedianCutQuantizer{Mode, nil}
+	q := MedianCutQuantizer{Mode, nil, false}
 	f, err := os.Create("test_output.gif")
 	if err != nil {
 		t.Fatal("Couldn't open output file")
