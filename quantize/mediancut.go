@@ -179,19 +179,21 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 	colors := make(map[color.Color]uint64)
 	for x := m.Bounds().Min.X; x < m.Bounds().Max.X; x++ {
 		for y := m.Bounds().Min.Y; y < m.Bounds().Max.Y; y++ {
+			priority := uint64(1)
 			if q.Weighting != nil {
-				priority := q.Weighting(m, x, y)
-				if priority != 0 {
-					colors[m.At(x, y)] += priority
+				priority = q.Weighting(m, x, y)
+			}
+			if priority != 0 {
+				c := m.At(x, y)
+				if _, ok := colors[c]; !ok {
+					bucket = append(bucket, colorPriority{c, 0})
 				}
-			} else {
-				colors[m.At(x, y)]++
+				colors[c] += priority
 			}
 		}
 	}
-
-	for c, priority := range colors {
-		bucket = append(bucket, colorPriority{c, priority})
+	for i := range bucket {
+		bucket[i].p = colors[bucket[i].c]
 	}
 	return
 }
