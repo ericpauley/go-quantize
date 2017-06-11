@@ -50,6 +50,19 @@ func TestQuantize(t *testing.T) {
 	p := q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
 
+	q = MedianCutQuantizer{Mean, nil, false}
+	p2 := q.Quantize(make([]color.Color, 0, 256), i)
+
+	if len(p) != len(p2) {
+		t.Fatal("Quantize is not deterministic")
+	}
+
+	for i := range p {
+		if p[i] != p2[i] {
+			t.Fatal("Quantize is not deterministic")
+		}
+	}
+
 	q = MedianCutQuantizer{Mode, nil, false}
 	p = q.Quantize(make([]color.Color, 0, 256), i)
 	t.Logf("Created palette with %d colors", len(p))
