@@ -193,8 +193,11 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 
 // buildBucket creates a prioritized color slice with all the colors in the image
 func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) {
-	colors := make(map[simpleColor]int)
 	bounds := m.Bounds()
+	size := (bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y)
+	sparseBucket := make([]colorPriority, size)
+	created := 0
+
 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			priority := uint64(1)
@@ -203,14 +206,26 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 			}
 			if priority != 0 {
 				c := simpleFromGeneral(m.At(x, y))
-				p, ok := colors[c]
-				if !ok {
-					bucket = append(bucket, colorPriority{0, c})
-					p = len(bucket) - 1
-					colors[c] = p
+				start := int(c.r)<<16 | int(c.g)<<8 | int(c.b)
+				for i := 0; ; i++ {
+					index := start + i*i
+					if sparseBucket[index%size].p == 0 {
+						sparseBucket[index%size] = colorPriority{priority, c}
+						created++
+						break
+					}
+					if sparseBucket[index%size].simpleColor == c {
+						sparseBucket[index%size].p += priority
+						break
+					}
 				}
-				bucket[p].p += priority
 			}
+		}
+	}
+	bucket = make([]colorPriority, 0, created)
+	for _, p := range sparseBucket {
+		if p.p != 0 {
+			bucket = append(bucket, p)
 		}
 	}
 	return
