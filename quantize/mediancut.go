@@ -50,6 +50,11 @@ func simpleFromGeneral(general color.Color) simpleColor {
 	return simpleColor{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
 }
 
+func simpleFromYCbCr(general color.YCbCr) simpleColor {
+	r, g, b, _ := general.RGBA()
+	return simpleColor{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
+}
+
 type colorPriority struct {
 	p uint64
 	simpleColor
@@ -58,7 +63,7 @@ type colorPriority struct {
 type colorBucket []colorPriority
 
 // AggregationType specifies the type of aggregation to be done
-type AggregationType int
+type AggregationType uint8
 
 const (
 	// Mode - pick the highest priority value
@@ -112,11 +117,12 @@ func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis, priori
 
 //bucketize takes a bucket and performs median cut on it to obtain the target number of grouped buckets
 func bucketize(colors []colorPriority, num int) (buckets []colorBucket) {
-	if len(colors) == 0 {
-		return []colorBucket{}
+	if len(colors) == 0 || num == 0 {
+		return nil
 	}
 	bucket := colors
-	buckets = []colorBucket{bucket}
+	buckets = make([]colorBucket, 1, num*2)
+	buckets[0] = bucket
 
 	for len(buckets) < num && len(buckets) < len(colors) { // Limit to palette capacity or number of colors
 		bucket, buckets = buckets[0], buckets[1:]
@@ -191,6 +197,19 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 	return p
 }
 
+func simpleYCbCrAt(m *image.YCbCr, x int, y int) simpleColor {
+	return simpleFromYCbCr(m.YCbCrAt(x, y))
+}
+
+func simpleAt(m image.Image, x int, y int) simpleColor {
+	switch i := m.(type) {
+	case *image.YCbCr:
+		return simpleYCbCrAt(i, x, y)
+	default:
+		return simpleFromGeneral(m.At(x, y))
+	}
+}
+
 // buildBucket creates a prioritized color slice with all the colors in the image
 func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) {
 	bounds := m.Bounds()
@@ -205,7 +224,7 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 				priority = q.Weighting(m, x, y)
 			}
 			if priority != 0 {
-				c := simpleFromGeneral(m.At(x, y))
+				c := simpleAt(m, x, y)
 				start := int(c.r)<<16 | int(c.g)<<8 | int(c.b)
 				for i := 0; ; i++ {
 					index := start + i*i
@@ -222,7 +241,7 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 			}
 		}
 	}
-	bucket = make([]colorPriority, 0, created)
+	bucket = sparseBucket[:0]
 	for _, p := range sparseBucket {
 		if p.p != 0 {
 			bucket = append(bucket, p)
