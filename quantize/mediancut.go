@@ -193,24 +193,25 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 
 // buildBucket creates a prioritized color slice with all the colors in the image
 func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) {
-	colors := make(map[simpleColor]uint64)
-	for x := m.Bounds().Min.X; x < m.Bounds().Max.X; x++ {
-		for y := m.Bounds().Min.Y; y < m.Bounds().Max.Y; y++ {
+	colors := make(map[simpleColor]int)
+	bounds := m.Bounds()
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			priority := uint64(1)
 			if q.Weighting != nil {
 				priority = q.Weighting(m, x, y)
 			}
 			if priority != 0 {
 				c := simpleFromGeneral(m.At(x, y))
-				if _, ok := colors[c]; !ok {
+				p, ok := colors[c]
+				if !ok {
 					bucket = append(bucket, colorPriority{0, c})
+					p = len(bucket) - 1
+					colors[c] = p
 				}
-				colors[c] += priority
+				bucket[p].p += priority
 			}
 		}
-	}
-	for i := range bucket {
-		bucket[i].p = colors[bucket[i].simpleColor]
 	}
 	return
 }

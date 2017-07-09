@@ -26,6 +26,12 @@ func TestBuildBucket(t *testing.T) {
 	colors := q.buildBucket(i)
 	t.Logf("Naive color map contains %d elements", len(colors))
 
+	for _, p := range colors {
+		if p.p == 0 {
+			t.Fatal("Bucket had a 0 priority element")
+		}
+	}
+
 	q = MedianCutQuantizer{Mode, func(i image.Image, x int, y int) uint64 {
 		if x < 2 || y < 2 || x > i.Bounds().Max.X-2 || y > i.Bounds().Max.X-2 {
 			return 1
@@ -85,6 +91,7 @@ func BenchmarkQuantize(b *testing.B) {
 	if err != nil {
 		b.Fatal("Couldn't decode test file")
 	}
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		q := MedianCutQuantizer{Mean, nil, false}
