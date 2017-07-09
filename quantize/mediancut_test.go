@@ -91,6 +91,17 @@ func TestOverQuantize(t *testing.T) {
 	t.Logf("Created palette with %d colors", len(p))
 }
 
+func TestEmptyQuantize(t *testing.T) {
+	i := image.NewNRGBA(image.Rect(0, 0, 0, 0))
+
+	q := MedianCutQuantizer{Mean, nil, false}
+	p := q.Quantize(make([]color.Color, 0, 256), i)
+	if len(p) != 0 {
+		t.Fatal("Quantizer returned colors for empty image")
+	}
+	t.Logf("Created palette with %d colors", len(p))
+}
+
 func TestGif(t *testing.T) {
 	file, err := os.Open("test_image.jpg")
 	if err != nil {

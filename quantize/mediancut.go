@@ -98,6 +98,9 @@ func gtColor(a color.Color, b color.Color, span colorAxis) bool {
 
 //bucketize takes a bucket and performs median cut on it to obtain the target number of grouped buckets
 func bucketize(colors []colorPriority, num int) (buckets []colorBucket) {
+	if len(colors) == 0 {
+		return []colorBucket{}
+	}
 	bucket := colors
 	buckets = []colorBucket{bucket}
 
