@@ -76,6 +76,22 @@ func TestQuantize(t *testing.T) {
 	t.Logf("Created palette with %d colors", len(p))
 }
 
+func BenchmarkQuantize(b *testing.B) {
+	file, err := os.Open("test_image.jpg")
+	if err != nil {
+		b.Fatal("Couldn't open test file")
+	}
+	m, _, err := image.Decode(file)
+	if err != nil {
+		b.Fatal("Couldn't decode test file")
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		q := MedianCutQuantizer{Mean, nil, false}
+		q.Quantize(make([]color.Color, 0, 256), m)
+	}
+}
+
 // TestOverQuantize ensures that the quantizer can properly handle an image with more space than needed in the palette
 func TestOverQuantize(t *testing.T) {
 	file, err := os.Open("test_image2.gif")
