@@ -99,6 +99,13 @@ func BenchmarkQuantize(b *testing.B) {
 	}
 }
 
+func TestRGBAQuantize(t *testing.T) {
+	i := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	q := MedianCutQuantizer{Mean, nil, false}
+	p := q.Quantize(make([]color.Color, 0, 256), i)
+	t.Logf("Created palette with %d colors", len(p))
+}
+
 // TestOverQuantize ensures that the quantizer can properly handle an image with more space than needed in the palette
 func TestOverQuantize(t *testing.T) {
 	file, err := os.Open("test_image2.gif")

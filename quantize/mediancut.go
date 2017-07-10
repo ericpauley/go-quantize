@@ -55,6 +55,10 @@ func simpleFromYCbCr(general color.YCbCr) simpleColor {
 	return simpleColor{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
 }
 
+func simpleFromRGBA(general color.RGBA) simpleColor {
+	return simpleColor{general.R, general.G, general.B}
+}
+
 type colorPriority struct {
 	p uint64
 	simpleColor
@@ -201,10 +205,16 @@ func simpleYCbCrAt(m *image.YCbCr, x int, y int) simpleColor {
 	return simpleFromYCbCr(m.YCbCrAt(x, y))
 }
 
+func simpleRGBAAt(m *image.RGBA, x int, y int) simpleColor {
+	return simpleFromRGBA(m.RGBAAt(x, y))
+}
+
 func simpleAt(m image.Image, x int, y int) simpleColor {
 	switch i := m.(type) {
 	case *image.YCbCr:
 		return simpleYCbCrAt(i, x, y)
+	case *image.RGBA:
+		return simpleRGBAAt(i, x, y)
 	default:
 		return simpleFromGeneral(m.At(x, y))
 	}
