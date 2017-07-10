@@ -5,7 +5,37 @@ package quantize
 import (
 	"image"
 	"image/color"
+	"sync"
 )
+
+type bucketPool struct {
+	sync.Pool
+	maxCap int
+	m      sync.Mutex
+}
+
+func (p *bucketPool) getBucket(c int) colorBucket {
+	p.m.Lock()
+	if p.maxCap > c {
+		p.maxCap = p.maxCap * 99 / 100
+	}
+	if p.maxCap < c {
+		p.maxCap = c
+	}
+	p.m.Unlock()
+	val := p.Pool.Get()
+	if val == nil || cap(val.(colorBucket)) < c {
+		return make(colorBucket, p.maxCap)[0:c]
+	}
+	slice := val.(colorBucket)
+	slice = slice[0:c]
+	for i := range slice {
+		slice[i] = colorPriority{}
+	}
+	return slice
+}
+
+var bpool bucketPool
 
 // AggregationType specifies the type of aggregation to be done
 type AggregationType uint8
@@ -105,10 +135,10 @@ func rgbaAt(m image.Image, x int, y int) color.RGBA {
 }
 
 // buildBucket creates a prioritized color slice with all the colors in the image
-func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) {
+func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 	bounds := m.Bounds()
-	size := (bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y)
-	sparseBucket := make([]colorPriority, size)
+	size := (bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y) * 2
+	sparseBucket := bpool.getBucket(size)
 	created := 0
 
 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
@@ -146,5 +176,7 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 
 // Quantize quantizes an image to a palette and returns the palette
 func (q MedianCutQuantizer) Quantize(p color.Palette, m image.Image) color.Palette {
-	return q.quantizeSlice(p, q.buildBucket(m))
+	bucket := q.buildBucket(m)
+	defer bpool.Put(bucket)
+	return q.quantizeSlice(p, bucket)
 }

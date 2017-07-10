@@ -91,10 +91,10 @@ func BenchmarkQuantize(b *testing.B) {
 	if err != nil {
 		b.Fatal("Couldn't decode test file")
 	}
+	q := MedianCutQuantizer{Mean, nil, false}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		q := MedianCutQuantizer{Mean, nil, false}
 		q.Quantize(make([]color.Color, 0, 256), m)
 	}
 }

@@ -11,21 +11,20 @@ const (
 	blue
 )
 
-// gtColor returns if color a is greater than color b on the specified color channel
-func gt(c uint8, other color.RGBA, span colorAxis) bool {
-	switch span {
-	case red:
-		return c > other.R
-	case green:
-		return c > other.G
-	default:
-		return c > other.B
-	}
-}
-
 type colorPriority struct {
 	p uint32
 	color.RGBA
+}
+
+func (c colorPriority) axis(span colorAxis) uint8 {
+	switch span {
+	case red:
+		return c.R
+	case green:
+		return c.G
+	default:
+		return c.B
+	}
 }
 
 type colorBucket []colorPriority
@@ -34,10 +33,10 @@ func (cb colorBucket) partition() (colorBucket, colorBucket) {
 	mean, span := cb.span()
 	left, right := 0, len(cb)-1
 	for left < right {
-		for gt(mean, cb[left].RGBA, span) {
+		for cb[left].axis(span) < mean {
 			left++
 		}
-		for !gt(mean, cb[right].RGBA, span) {
+		for cb[right].axis(span) >= mean {
 			right--
 		}
 		cb[left], cb[right] = cb[right], cb[left]
