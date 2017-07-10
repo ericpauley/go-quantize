@@ -32,7 +32,7 @@ func TestBuildBucket(t *testing.T) {
 		}
 	}
 
-	q = MedianCutQuantizer{Mode, func(i image.Image, x int, y int) uint64 {
+	q = MedianCutQuantizer{Mode, func(i image.Image, x int, y int) uint32 {
 		if x < 2 || y < 2 || x > i.Bounds().Max.X-2 || y > i.Bounds().Max.X-2 {
 			return 1
 		}

@@ -51,8 +51,8 @@ func simpleFromGeneral(general color.Color) simpleColor {
 }
 
 func simpleFromYCbCr(general color.YCbCr) simpleColor {
-	r, g, b, _ := general.RGBA()
-	return simpleColor{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
+	r, g, b := color.YCbCrToRGB(general.Y, general.Cb, general.Cr)
+	return simpleColor{r, g, b}
 }
 
 func simpleFromRGBA(general color.RGBA) simpleColor {
@@ -60,7 +60,7 @@ func simpleFromRGBA(general color.RGBA) simpleColor {
 }
 
 type colorPriority struct {
-	p uint64
+	p uint32
 	simpleColor
 }
 
@@ -81,24 +81,24 @@ type MedianCutQuantizer struct {
 	// The type of aggregation to be used to find final colors
 	Aggregation AggregationType
 	// The weighting function to use on each pixel
-	Weighting func(image.Image, int, int) uint64
+	Weighting func(image.Image, int, int) uint32
 	// Whether to create a transparent entry
 	AddTransparent bool
 }
 
 // colorSpan performs linear color bucket statistics
-func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis, priority uint64) {
-	var r, g, b uint64    // Sum of channels
-	var r2, g2, b2 uint64 // Sum of square of channels
+func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis, priority uint32) {
+	var r, g, b uint32    // Sum of channels
+	var r2, g2, b2 uint32 // Sum of square of channels
 
 	for _, c := range colors { // Calculate priority-weighted sums
 		priority += c.p
-		r += uint64(c.r) * c.p
-		g += uint64(c.g) * c.p
-		b += uint64(c.b) * c.p
-		r2 += uint64(c.r*c.r) * c.p
-		g2 += uint64(c.g*c.g) * c.p
-		b2 += uint64(c.b*c.b) * c.p
+		r += uint32(c.r) * c.p
+		g += uint32(c.g) * c.p
+		b += uint32(c.b) * c.p
+		r2 += uint32(c.r*c.r) * c.p
+		g2 += uint32(c.g*c.g) * c.p
+		b2 += uint32(c.b*c.b) * c.p
 	}
 
 	mr := r / priority
@@ -229,7 +229,7 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 
 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-			priority := uint64(1)
+			priority := uint32(1)
 			if q.Weighting != nil {
 				priority = q.Weighting(m, x, y)
 			}
