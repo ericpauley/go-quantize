@@ -66,6 +66,20 @@ type colorPriority struct {
 
 type colorBucket []colorPriority
 
+func (c colorBucket) partition(mean simpleColor, span colorAxis) (colorBucket, colorBucket) {
+	left, right := 0, len(c)-1
+	for left < right {
+		for mean.gt(c[left].simpleColor, span) {
+			left++
+		}
+		for !mean.gt(c[right].simpleColor, span) {
+			right--
+		}
+		c[left], c[right] = c[right], c[left]
+	}
+	return c[:left], c[left:]
+}
+
 // AggregationType specifies the type of aggregation to be done
 type AggregationType uint8
 
@@ -87,23 +101,24 @@ type MedianCutQuantizer struct {
 }
 
 // colorSpan performs linear color bucket statistics
-func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis, priority uint32) {
-	var r, g, b uint32    // Sum of channels
-	var r2, g2, b2 uint32 // Sum of square of channels
+func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis) {
+	var r, g, b uint64    // Sum of channels
+	var r2, g2, b2 uint64 // Sum of square of channels
+	var priority uint64
 
 	for _, c := range colors { // Calculate priority-weighted sums
-		priority += c.p
-		r += uint32(c.r) * c.p
-		g += uint32(c.g) * c.p
-		b += uint32(c.b) * c.p
-		r2 += uint32(c.r*c.r) * c.p
-		g2 += uint32(c.g*c.g) * c.p
-		b2 += uint32(c.b*c.b) * c.p
+		priority += uint64(c.p)
+		r += uint64(uint32(c.r) * c.p)
+		g += uint64(uint32(c.g) * c.p)
+		b += uint64(uint32(c.b) * c.p)
+		r2 += uint64(uint32(c.r*c.r) * c.p)
+		g2 += uint64(uint32(c.g*c.g) * c.p)
+		b2 += uint64(uint32(c.b*c.b) * c.p)
 	}
 
-	mr := r / priority
-	mg := g / priority
-	mb := b / priority
+	mr := (r + priority - 1) / priority
+	mg := (g + priority - 1) / priority
+	mb := (b + priority - 1) / priority
 	mean = simpleColor{uint8(mr), uint8(mg), uint8(mb)}
 
 	sr := r2/priority - mr*mr // Calculate the variance to find which span is the broadest
@@ -120,7 +135,7 @@ func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis, priori
 }
 
 //bucketize takes a bucket and performs median cut on it to obtain the target number of grouped buckets
-func bucketize(colors []colorPriority, num int) (buckets []colorBucket) {
+func bucketize(colors colorBucket, num int) (buckets []colorBucket) {
 	if len(colors) == 0 || num == 0 {
 		return nil
 	}
@@ -134,27 +149,10 @@ func bucketize(colors []colorPriority, num int) (buckets []colorBucket) {
 			buckets = append(buckets, bucket)
 			continue
 		}
-		mean, span, _ := colorSpan(bucket)
+		mean, span := colorSpan(bucket)
 
-		// Janky quicksort partition, needs some odd edge cases supported
-		left, right := 0, len(bucket)-1
-		for {
-			for mean.gt(bucket[left].simpleColor, span) && left < len(bucket) {
-				left++
-			}
-			for !mean.gt(bucket[right].simpleColor, span) && right > 0 {
-				right--
-			}
-			if left >= right {
-				for mean.gt(bucket[right].simpleColor, span) || right == 0 {
-					right++ // Ensure pivot is in the right place
-				}
-				break
-			}
-			bucket[left], bucket[right] = bucket[right], bucket[left]
-		}
-
-		buckets = append(buckets, bucket[:right], bucket[right:])
+		left, right := bucket.partition(mean, span)
+		buckets = append(buckets, left, right)
 	}
 	return
 }
@@ -164,7 +162,7 @@ func (q MedianCutQuantizer) palettize(p color.Palette, buckets []colorBucket) co
 	for _, bucket := range buckets {
 		switch q.Aggregation {
 		case Mean:
-			mean, _, _ := colorSpan(bucket)
+			mean, _ := colorSpan(bucket)
 			p = append(p, mean)
 		case Mode:
 			var best *colorPriority
@@ -235,9 +233,8 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 			}
 			if priority != 0 {
 				c := simpleAt(m, x, y)
-				start := int(c.r)<<16 | int(c.g)<<8 | int(c.b)
-				for i := 0; ; i++ {
-					index := start + i*i
+				index := int(c.r)<<16 | int(c.g)<<8 | int(c.b)
+				for i := 1; ; i++ {
 					if sparseBucket[index%size].p == 0 {
 						sparseBucket[index%size] = colorPriority{priority, c}
 						created++
@@ -247,6 +244,7 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 						sparseBucket[index%size].p += priority
 						break
 					}
+					index += 1 + i
 				}
 			}
 		}
