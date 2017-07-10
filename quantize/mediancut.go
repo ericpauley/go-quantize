@@ -7,79 +7,6 @@ import (
 	"image/color"
 )
 
-type colorAxis uint8
-
-// Color axis constants
-const (
-	red colorAxis = iota
-	green
-	blue
-)
-
-type simpleColor struct {
-	r uint8
-	g uint8
-	b uint8
-}
-
-func (c simpleColor) RGBA() (r, g, b, a uint32) {
-	r = uint32(c.r)
-	r |= r << 8
-	g = uint32(c.g)
-	g |= g << 8
-	b = uint32(c.b)
-	b |= b << 8
-	a = 0xFFFF
-	return
-}
-
-// gtColor returns if color a is greater than color b on the specified color channel
-func (c simpleColor) gt(other simpleColor, span colorAxis) bool {
-	switch span {
-	case red:
-		return c.r > other.r
-	case green:
-		return c.g > other.g
-	default:
-		return c.b > other.b
-	}
-}
-
-func simpleFromGeneral(general color.Color) simpleColor {
-	r, g, b, _ := general.RGBA()
-	return simpleColor{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
-}
-
-func simpleFromYCbCr(general color.YCbCr) simpleColor {
-	r, g, b := color.YCbCrToRGB(general.Y, general.Cb, general.Cr)
-	return simpleColor{r, g, b}
-}
-
-func simpleFromRGBA(general color.RGBA) simpleColor {
-	return simpleColor{general.R, general.G, general.B}
-}
-
-type colorPriority struct {
-	p uint32
-	simpleColor
-}
-
-type colorBucket []colorPriority
-
-func (c colorBucket) partition(mean simpleColor, span colorAxis) (colorBucket, colorBucket) {
-	left, right := 0, len(c)-1
-	for left < right {
-		for mean.gt(c[left].simpleColor, span) {
-			left++
-		}
-		for !mean.gt(c[right].simpleColor, span) {
-			right--
-		}
-		c[left], c[right] = c[right], c[left]
-	}
-	return c[:left], c[left:]
-}
-
 // AggregationType specifies the type of aggregation to be done
 type AggregationType uint8
 
@@ -100,40 +27,6 @@ type MedianCutQuantizer struct {
 	AddTransparent bool
 }
 
-// colorSpan performs linear color bucket statistics
-func colorSpan(colors []colorPriority) (mean simpleColor, span colorAxis) {
-	var r, g, b uint64    // Sum of channels
-	var r2, g2, b2 uint64 // Sum of square of channels
-	var priority uint64
-
-	for _, c := range colors { // Calculate priority-weighted sums
-		priority += uint64(c.p)
-		r += uint64(uint32(c.r) * c.p)
-		g += uint64(uint32(c.g) * c.p)
-		b += uint64(uint32(c.b) * c.p)
-		r2 += uint64(uint32(c.r*c.r) * c.p)
-		g2 += uint64(uint32(c.g*c.g) * c.p)
-		b2 += uint64(uint32(c.b*c.b) * c.p)
-	}
-
-	mr := (r + priority - 1) / priority
-	mg := (g + priority - 1) / priority
-	mb := (b + priority - 1) / priority
-	mean = simpleColor{uint8(mr), uint8(mg), uint8(mb)}
-
-	sr := r2/priority - mr*mr // Calculate the variance to find which span is the broadest
-	sg := g2/priority - mg*mg
-	sb := b2/priority - mb*mb
-	if sr > sg && sr > sb {
-		span = red
-	} else if sg > sb {
-		span = green
-	} else {
-		span = blue
-	}
-	return
-}
-
 //bucketize takes a bucket and performs median cut on it to obtain the target number of grouped buckets
 func bucketize(colors colorBucket, num int) (buckets []colorBucket) {
 	if len(colors) == 0 || num == 0 {
@@ -149,9 +42,8 @@ func bucketize(colors colorBucket, num int) (buckets []colorBucket) {
 			buckets = append(buckets, bucket)
 			continue
 		}
-		mean, span := colorSpan(bucket)
 
-		left, right := bucket.partition(mean, span)
+		left, right := bucket.partition()
 		buckets = append(buckets, left, right)
 	}
 	return
@@ -162,7 +54,7 @@ func (q MedianCutQuantizer) palettize(p color.Palette, buckets []colorBucket) co
 	for _, bucket := range buckets {
 		switch q.Aggregation {
 		case Mean:
-			mean, _ := colorSpan(bucket)
+			mean := bucket.mean()
 			p = append(p, mean)
 		case Mode:
 			var best *colorPriority
@@ -171,7 +63,7 @@ func (q MedianCutQuantizer) palettize(p color.Palette, buckets []colorBucket) co
 					best = &c
 				}
 			}
-			p = append(p, best)
+			p = append(p, best.RGBA)
 		}
 	}
 	return p
@@ -199,22 +91,16 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 	return p
 }
 
-func simpleYCbCrAt(m *image.YCbCr, x int, y int) simpleColor {
-	return simpleFromYCbCr(m.YCbCrAt(x, y))
-}
-
-func simpleRGBAAt(m *image.RGBA, x int, y int) simpleColor {
-	return simpleFromRGBA(m.RGBAAt(x, y))
-}
-
-func simpleAt(m image.Image, x int, y int) simpleColor {
+func rgbaAt(m image.Image, x int, y int) color.RGBA {
 	switch i := m.(type) {
 	case *image.YCbCr:
-		return simpleYCbCrAt(i, x, y)
+		c := i.YCbCrAt(x, y)
+		r, g, b := color.YCbCrToRGB(c.Y, c.Cb, c.Cr)
+		return color.RGBA{r, g, b, 255}
 	case *image.RGBA:
-		return simpleRGBAAt(i, x, y)
+		return i.RGBAAt(x, y)
 	default:
-		return simpleFromGeneral(m.At(x, y))
+		return color.RGBAModel.Convert(i.At(x, y)).(color.RGBA)
 	}
 }
 
@@ -232,15 +118,15 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket []colorPriority) 
 				priority = q.Weighting(m, x, y)
 			}
 			if priority != 0 {
-				c := simpleAt(m, x, y)
-				index := int(c.r)<<16 | int(c.g)<<8 | int(c.b)
+				c := rgbaAt(m, x, y)
+				index := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
 				for i := 1; ; i++ {
 					if sparseBucket[index%size].p == 0 {
 						sparseBucket[index%size] = colorPriority{priority, c}
 						created++
 						break
 					}
-					if sparseBucket[index%size].simpleColor == c {
+					if sparseBucket[index%size].RGBA == c {
 						sparseBucket[index%size].p += priority
 						break
 					}
