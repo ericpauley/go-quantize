@@ -2,6 +2,7 @@ package quantize
 
 import (
 	"bufio"
+	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
@@ -41,6 +42,22 @@ func TestBuildBucket(t *testing.T) {
 
 	colors = q.buildBucket(i)
 	t.Logf("Color map contains %d elements", len(colors))
+}
+
+func ExampleMedianCutQuantizer() {
+	file, err := os.Open("test_image.jpg")
+	if err != nil {
+		fmt.Println("Couldn't open test file")
+		return
+	}
+	i, _, err := image.Decode(file)
+	if err != nil {
+		fmt.Println("Couldn't decode test file")
+		return
+	}
+	q := MedianCutQuantizer{}
+	p := q.Quantize(make([]color.Color, 0, 256), i)
+	fmt.Println(p)
 }
 
 func TestQuantize(t *testing.T) {
