@@ -9,10 +9,10 @@ go-quantize performs significantly faster than existing quantization libraries:
 
 ```
 # bench/bench_test.go
-BenchmarkQuantize-8          	      50	  29169882 ns/op	  134954 B/op	     259 allocs/op
-BenchmarkSoniakeysMedian-8   	       3	 489195141 ns/op	 3479624 B/op	     782 allocs/op
-BenchmarkSoniakeysMean-8     	       3	 358811870 ns/op	 2755680 B/op	     262 allocs/op
-BenchmarkEsimov-8            	       2	 620675784 ns/op	35848320 B/op	 8872271 allocs/op
+BenchmarkQuantize-8          	      50	  20070550 ns/op	  122690 B/op	     258 allocs/op
+BenchmarkSoniakeysMedian-8   	       3	 465833354 ns/op	 3479624 B/op	     782 allocs/op
+BenchmarkSoniakeysMean-8     	       3	 342759921 ns/op	 2755712 B/op	     262 allocs/op
+BenchmarkEsimov-8            	       2	 645129392 ns/op	35849608 B/op	 8872273 allocs/op
 ```
 
 ## Example Usage

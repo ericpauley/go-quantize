@@ -121,14 +121,20 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 	return p
 }
 
-func rgbaAt(m image.Image, x int, y int) color.RGBA {
+func colorAt(m image.Image, x int, y int) color.RGBA {
 	switch i := m.(type) {
 	case *image.YCbCr:
-		c := i.YCbCrAt(x, y)
-		r, g, b := color.YCbCrToRGB(c.Y, c.Cb, c.Cr)
-		return color.RGBA{r, g, b, 255}
+		yi := i.YOffset(x, y)
+		ci := i.COffset(x, y)
+		c := color.YCbCr{
+			i.Y[yi],
+			i.Cb[ci],
+			i.Cr[ci],
+		}
+		return color.RGBA{c.Y, c.Cb, c.Cr, 255}
 	case *image.RGBA:
-		return i.RGBAAt(x, y)
+		ci := i.PixOffset(x, y)
+		return color.RGBA{i.Pix[ci+0], i.Pix[ci+1], i.Pix[ci+2], i.Pix[ci+3]}
 	default:
 		return color.RGBAModel.Convert(i.At(x, y)).(color.RGBA)
 	}
@@ -139,7 +145,6 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 	bounds := m.Bounds()
 	size := (bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y) * 2
 	sparseBucket := bpool.getBucket(size)
-	created := 0
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
@@ -148,16 +153,12 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 				priority = q.Weighting(m, x, y)
 			}
 			if priority != 0 {
-				c := rgbaAt(m, x, y)
+				c := colorAt(m, x, y)
 				index := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
 				for i := 1; ; i++ {
-					if sparseBucket[index%size].p == 0 {
-						sparseBucket[index%size] = colorPriority{priority, c}
-						created++
-						break
-					}
-					if sparseBucket[index%size].RGBA == c {
-						sparseBucket[index%size].p += priority
+					p := &sparseBucket[index%size]
+					if p.p == 0 || p.RGBA == c {
+						*p = colorPriority{p.p + priority, c}
 						break
 					}
 					index += 1 + i
@@ -166,9 +167,19 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 		}
 	}
 	bucket = sparseBucket[:0]
-	for _, p := range sparseBucket {
-		if p.p != 0 {
-			bucket = append(bucket, p)
+	switch m.(type) {
+	case *image.YCbCr:
+		for _, p := range sparseBucket {
+			if p.p != 0 {
+				r, g, b := color.YCbCrToRGB(p.R, p.G, p.B)
+				bucket = append(bucket, colorPriority{p.p, color.RGBA{r, g, b, p.A}})
+			}
+		}
+	default:
+		for _, p := range sparseBucket {
+			if p.p != 0 {
+				bucket = append(bucket, p)
+			}
 		}
 	}
 	return
