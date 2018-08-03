@@ -141,8 +141,8 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 	sparseBucket := bpool.getBucket(size)
 	created := 0
 
-	for x := bounds.Min.X; x < bounds.Max.X; x++ {
-		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			priority := uint32(1)
 			if q.Weighting != nil {
 				priority = q.Weighting(m, x, y)
