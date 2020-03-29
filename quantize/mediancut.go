@@ -22,10 +22,11 @@ func (p *bucketPool) getBucket(c int) colorBucket {
 	if p.maxCap < c {
 		p.maxCap = c
 	}
+	maxCap := p.maxCap
 	p.m.Unlock()
 	val := p.Pool.Get()
 	if val == nil || cap(val.(colorBucket)) < c {
-		return make(colorBucket, p.maxCap)[0:c]
+		return make(colorBucket, maxCap)[0:c]
 	}
 	slice := val.(colorBucket)
 	slice = slice[0:c]
