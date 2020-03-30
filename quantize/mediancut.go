@@ -88,10 +88,10 @@ func (q MedianCutQuantizer) palettize(p color.Palette, buckets []colorBucket) co
 			mean := bucket.mean()
 			p = append(p, mean)
 		case Mode:
-			var best *colorPriority
+			var best colorPriority
 			for _, c := range bucket {
-				if best == nil || c.p > best.p {
-					best = &c
+				if c.p > best.p {
+					best = c
 				}
 			}
 			p = append(p, best.RGBA)
