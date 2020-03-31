@@ -72,6 +72,9 @@ func bucketize(colors colorBucket, num int) (buckets []colorBucket) {
 		if len(bucket) < 2 {
 			buckets = append(buckets, bucket)
 			continue
+		} else if len(bucket) == 2 {
+			buckets = append(buckets, bucket[:1], bucket[1:])
+			continue
 		}
 
 		left, right := bucket.partition()

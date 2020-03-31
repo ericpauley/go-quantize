@@ -34,12 +34,18 @@ func (cb colorBucket) partition() (colorBucket, colorBucket) {
 	left, right := 0, len(cb)-1
 	for left < right {
 		cb[left], cb[right] = cb[right], cb[left]
-		for cb[left].axis(span) < mean {
+		for cb[left].axis(span) < mean && left < right {
 			left++
 		}
-		for cb[right].axis(span) >= mean {
+		for cb[right].axis(span) >= mean && left < right {
 			right--
 		}
+	}
+	if left == 0 {
+		return cb[:1], cb[1:]
+	}
+	if left == len(cb)-1 {
+		return cb[:len(cb)-1], cb[len(cb)-1:]
 	}
 	return cb[:left], cb[left:]
 }
