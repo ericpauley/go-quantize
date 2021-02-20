@@ -24,7 +24,7 @@ func TestBuildBucket(t *testing.T) {
 
 	q := MedianCutQuantizer{Mode, nil, false}
 
-	colors := q.buildBucket(i)
+	colors := q.buildBucketMultiple([]image.Image{i})
 	t.Logf("Naive color map contains %d elements", len(colors))
 
 	for _, p := range colors {
@@ -40,7 +40,7 @@ func TestBuildBucket(t *testing.T) {
 		return 0
 	}, false}
 
-	colors = q.buildBucket(i)
+	colors = q.buildBucketMultiple([]image.Image{i})
 	t.Logf("Color map contains %d elements", len(colors))
 }
 

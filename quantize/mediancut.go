@@ -144,34 +144,42 @@ func colorAt(m image.Image, x int, y int) color.RGBA {
 	}
 }
 
-// buildBucket creates a prioritized color slice with all the colors in the image
-func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
-	bounds := m.Bounds()
+// buildBucketMultiple creates a prioritized color slice with all the colors in
+// the images.
+func (q MedianCutQuantizer) buildBucketMultiple(ms []image.Image) (bucket colorBucket) {
+	if len(ms) < 1 {
+		return colorBucket{}
+	}
+
+	bounds := ms[0].Bounds()
 	size := (bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y) * 2
 	sparseBucket := bpool.getBucket(size)
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			priority := uint32(1)
-			if q.Weighting != nil {
-				priority = q.Weighting(m, x, y)
-			}
-			if priority != 0 {
-				c := colorAt(m, x, y)
-				index := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
-				for i := 1; ; i++ {
-					p := &sparseBucket[index%size]
-					if p.p == 0 || p.RGBA == c {
-						*p = colorPriority{p.p + priority, c}
-						break
+	for _, m := range ms {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				priority := uint32(1)
+				if q.Weighting != nil {
+					priority = q.Weighting(m, x, y)
+				}
+				if priority != 0 {
+					c := colorAt(m, x, y)
+					index := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
+					for i := 1; ; i++ {
+						p := &sparseBucket[index%size]
+						if p.p == 0 || p.RGBA == c {
+							*p = colorPriority{p.p + priority, c}
+							break
+						}
+						index += 1 + i
 					}
-					index += 1 + i
 				}
 			}
 		}
 	}
+
 	bucket = sparseBucket[:0]
-	switch m.(type) {
+	switch ms[0].(type) {
 	case *image.YCbCr:
 		for _, p := range sparseBucket {
 			if p.p != 0 {
@@ -191,7 +199,15 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 
 // Quantize quantizes an image to a palette and returns the palette
 func (q MedianCutQuantizer) Quantize(p color.Palette, m image.Image) color.Palette {
-	bucket := q.buildBucket(m)
+	bucket := q.buildBucketMultiple([]image.Image{m})
+	defer bpool.Put(bucket)
+	return q.quantizeSlice(p, bucket)
+}
+
+// QuantizeMultiple quantizes several images at once to a palette and returns
+// the palette
+func (q MedianCutQuantizer) QuantizeMultiple(p color.Palette, m []image.Image) color.Palette {
+	bucket := q.buildBucketMultiple(m)
 	defer bpool.Put(bucket)
 	return q.quantizeSlice(p, bucket)
 }
