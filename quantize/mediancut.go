@@ -122,6 +122,9 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 	p = q.palettize(p, buckets)
 	if addTransparent {
 		p = append(p, color.RGBA{0, 0, 0, 0})
+
+		// Set our transparent color to be the first color
+		p[0], p[len(p)-1] = p[len(p)-1], p[0]
 	}
 	return p
 }
