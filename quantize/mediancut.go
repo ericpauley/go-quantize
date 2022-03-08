@@ -5,6 +5,7 @@ package quantize
 import (
 	"image"
 	"image/color"
+	"math"
 	"sync"
 )
 
@@ -121,6 +122,9 @@ func (q MedianCutQuantizer) quantizeSlice(p color.Palette, colors []colorPriorit
 	p = q.palettize(p, buckets)
 	if addTransparent {
 		p = append(p, color.RGBA{0, 0, 0, 0})
+
+		// Set our transparent color to be the first color
+		p[0], p[len(p)-1] = p[len(p)-1], p[0]
 	}
 	return p
 }
@@ -144,34 +148,65 @@ func colorAt(m image.Image, x int, y int) color.RGBA {
 	}
 }
 
-// buildBucket creates a prioritized color slice with all the colors in the image
-func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
-	bounds := m.Bounds()
-	size := (bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y) * 2
+// buildBucketMultiple creates a prioritized color slice with all the colors in
+// the images.
+func (q MedianCutQuantizer) buildBucketMultiple(ms []image.Image) (bucket colorBucket) {
+	if len(ms) < 1 {
+		return colorBucket{}
+	}
+
+	// If all images are not the same size, and if the first image is not the
+	// largest on both X and Y dimensions, this function will eventually trigger
+	// a panic unless we've configured the bounds to be based on the greatest x
+	// and y of all images in the gif, which we do here:
+	leastX, greatestX, leastY, greatestY := math.MaxInt32, 0, math.MaxInt32, 0
+	for _, palettedImage := range ms {
+		if palettedImage.Bounds().Min.X < leastX {
+			leastX = palettedImage.Bounds().Min.X
+		}
+		if palettedImage.Bounds().Max.X > greatestX {
+			greatestX = palettedImage.Bounds().Max.X
+		}
+
+		if palettedImage.Bounds().Min.Y < leastY {
+			leastY = palettedImage.Bounds().Min.Y
+		}
+		if palettedImage.Bounds().Max.Y > greatestY {
+			greatestY = palettedImage.Bounds().Max.Y
+		}
+	}
+
+	size := (greatestX - leastX) * (greatestY - leastY) * 2
 	sparseBucket := bpool.getBucket(size)
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			priority := uint32(1)
-			if q.Weighting != nil {
-				priority = q.Weighting(m, x, y)
-			}
-			if priority != 0 {
-				c := colorAt(m, x, y)
-				index := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
-				for i := 1; ; i++ {
-					p := &sparseBucket[index%size]
-					if p.p == 0 || p.RGBA == c {
-						*p = colorPriority{p.p + priority, c}
-						break
+	for _, m := range ms {
+		// Since images may have variable size, don't go beyond each specific
+		// image's X and Y bounds while we iterate, rather than using the global
+		// min and max x and y
+		for y := m.Bounds().Min.Y; y < m.Bounds().Max.Y; y++ {
+			for x := m.Bounds().Min.X; x < m.Bounds().Max.X; x++ {
+				priority := uint32(1)
+				if q.Weighting != nil {
+					priority = q.Weighting(m, x, y)
+				}
+				if priority != 0 {
+					c := colorAt(m, x, y)
+					index := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
+					for i := 1; ; i++ {
+						p := &sparseBucket[index%size]
+						if p.p == 0 || p.RGBA == c {
+							*p = colorPriority{p.p + priority, c}
+							break
+						}
+						index += 1 + i
 					}
-					index += 1 + i
 				}
 			}
 		}
 	}
+
 	bucket = sparseBucket[:0]
-	switch m.(type) {
+	switch ms[0].(type) {
 	case *image.YCbCr:
 		for _, p := range sparseBucket {
 			if p.p != 0 {
@@ -191,7 +226,15 @@ func (q MedianCutQuantizer) buildBucket(m image.Image) (bucket colorBucket) {
 
 // Quantize quantizes an image to a palette and returns the palette
 func (q MedianCutQuantizer) Quantize(p color.Palette, m image.Image) color.Palette {
-	bucket := q.buildBucket(m)
+	bucket := q.buildBucketMultiple([]image.Image{m})
+	defer bpool.Put(bucket)
+	return q.quantizeSlice(p, bucket)
+}
+
+// QuantizeMultiple quantizes several images at once to a palette and returns
+// the palette
+func (q MedianCutQuantizer) QuantizeMultiple(p color.Palette, m []image.Image) color.Palette {
+	bucket := q.buildBucketMultiple(m)
 	defer bpool.Put(bucket)
 	return q.quantizeSlice(p, bucket)
 }
